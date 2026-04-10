@@ -1,4 +1,4 @@
-export async function POST(request) {
+export default async function handler(req, res) {
   try {
     const { ingredients, vibe, time, skill, mood } = await request.json();
 
