@@ -1,12 +1,13 @@
-export default async function handler(req, res) {
+export default async function handler(request, response) {
+  if (request.method !== 'POST') {
+    return response.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
-    const { ingredients, vibe, time, skill, mood } = await request.json();
+    const { ingredients, vibe, time, skill, mood } = request.body || {};
 
     if (!ingredients || !String(ingredients).trim()) {
-      return Response.json(
-        { error: "Ingredients are required." },
-        { status: 400 }
-      );
+      return response.status(400).json({ error: 'Ingredients are required.' });
     }
 
     const prompt = `
@@ -37,10 +38,10 @@ Important:
 
 User details:
 - Ingredients: ${ingredients}
-- Vibe: ${vibe || "surprise me"}
-- Time available: ${time || "30"} minutes
-- Skill level: ${skill || "beginner"}
-- Mood: ${mood || "fun"}
+- Vibe: ${vibe || 'surprise me'}
+- Time available: ${time || '30'} minutes
+- Skill level: ${skill || 'beginner'}
+- Mood: ${mood || 'fun'}
 
 Return ONLY valid JSON in this exact shape:
 {
@@ -81,14 +82,14 @@ Rules:
 - Keep steps practical.
 `;
 
-    const openAIResponse = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
+    const openAIResponse = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: "gpt-5.4",
+        model: 'gpt-5.4',
         input: prompt
       })
     });
@@ -96,10 +97,9 @@ Rules:
     const data = await openAIResponse.json();
 
     if (!openAIResponse.ok) {
-      return Response.json(
-        { error: data?.error?.message || "OpenAI request failed." },
-        { status: 500 }
-      );
+      return response.status(500).json({
+        error: data?.error?.message || 'OpenAI request failed.'
+      });
     }
 
     const outputText =
@@ -107,45 +107,36 @@ Rules:
       (Array.isArray(data.output)
         ? data.output
             .flatMap(item => Array.isArray(item.content) ? item.content : [])
-            .filter(part => part.type === "output_text")
-            .map(part => part.text || "")
-            .join("")
-        : "");
+            .filter(part => part.type === 'output_text')
+            .map(part => part.text || '')
+            .join('')
+        : '');
 
     if (!outputText) {
-      return Response.json(
-        { error: "Model returned an empty response." },
-        { status: 500 }
-      );
+      return response.status(500).json({ error: 'Model returned an empty response.' });
     }
 
     const cleaned = outputText
-      .replace(/^```json\\s*/i, "")
-      .replace(/^```\\s*/i, "")
-      .replace(/\\s*```$/, "")
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/, '')
       .trim();
 
     let parsed;
     try {
       parsed = JSON.parse(cleaned);
     } catch (err) {
-      return Response.json(
-        { error: "Model returned invalid JSON." },
-        { status: 500 }
-      );
+      return response.status(500).json({ error: 'Model returned invalid JSON.' });
     }
 
-    return Response.json({
-      headline: parsed.headline || "Here’s your move.",
+    return response.status(200).json({
+      headline: parsed.headline || 'Here’s your move.',
       intro:
         parsed.intro ||
-        "A few good ways to make what you already have feel much more intentional.",
+        'A few good ways to make what you already have feel much more intentional.',
       ideas: Array.isArray(parsed.ideas) ? parsed.ideas.slice(0, 3) : []
     });
   } catch (error) {
-    return Response.json(
-      { error: "Internal server error." },
-      { status: 500 }
-    );
+    return response.status(500).json({ error: 'Internal server error.' });
   }
 }
